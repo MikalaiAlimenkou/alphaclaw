@@ -13,7 +13,7 @@ After pushing, include a link to the commit using the abbreviated hash: [abc1234
 
 AlphaClaw is the setup and management harness that runs alongside OpenClaw. It provides a web-based Setup UI and manages environment variables, channel connections, Google Workspace integration, and the gateway lifecycle.
 
-Setup UI: `{{SETUP_UI_URL}}`
+AlphaClaw UI: `{{SETUP_UI_URL}}`
 
 ### Tabs
 
