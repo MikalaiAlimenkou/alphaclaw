@@ -48,6 +48,16 @@ const createSystemDeps = () => {
     },
     clawCmd: vi.fn(async () => ({ ok: true, stdout: "" })),
     restartGateway: vi.fn(),
+    restartRequiredState: {
+      getSnapshot: vi.fn(async () => ({
+        restartRequired: false,
+        restartInProgress: false,
+        gatewayRunning: true,
+      })),
+      markRestartInProgress: vi.fn(),
+      clearRequired: vi.fn(),
+      markRestartComplete: vi.fn(),
+    },
     OPENCLAW_DIR: "/tmp/openclaw",
   };
   return deps;
@@ -194,7 +204,7 @@ describe("server/routes/system", () => {
 
     const restart = await request(app).post("/api/gateway/restart");
     expect(restart.status).toBe(200);
-    expect(restart.body).toEqual({ ok: true });
+    expect(restart.body).toEqual({ ok: true, restartRequired: false });
     expect(deps.restartGateway).toHaveBeenCalledTimes(1);
 
     const envAfterRestart = await request(app).get("/api/env");

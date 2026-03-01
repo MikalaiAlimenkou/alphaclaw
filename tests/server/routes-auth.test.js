@@ -104,8 +104,8 @@ describe("server/routes/auth", () => {
     expect(tokenMatch).toBeTruthy();
 
     const protectedRes = await request(app).get(`/api/protected?token=${tokenMatch[1]}`);
-    expect(protectedRes.status).toBe(302);
-    expect(protectedRes.headers.location).toBe("/login.html");
+    expect(protectedRes.status).toBe(401);
+    expect(protectedRes.body).toEqual({ error: "Unauthorized" });
   });
 
 });

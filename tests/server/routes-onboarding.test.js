@@ -49,6 +49,33 @@ const makeValidBody = () => ({
   ],
 });
 
+const mockGithubVerifyAndCreate = ({
+  repoStatus = 404,
+  repoOk = false,
+  createOk = true,
+  scopes = "repo",
+  login = "owner",
+} = {}) => {
+  global.fetch
+    .mockResolvedValueOnce({
+      ok: true,
+      headers: { get: () => scopes },
+      json: async () => ({ login }),
+    })
+    .mockResolvedValueOnce({
+      ok: repoOk,
+      status: repoStatus,
+      statusText: repoStatus === 404 ? "Not Found" : "OK",
+      json: async () => ({ message: repoStatus === 404 ? "Not Found" : "exists" }),
+    })
+    .mockResolvedValueOnce({
+      ok: createOk,
+      status: createOk ? 201 : 400,
+      statusText: createOk ? "Created" : "Bad Request",
+      json: async () => (createOk ? {} : { message: "create failed" }),
+    });
+};
+
 describe("server/routes/onboarding", () => {
   beforeEach(() => {
     global.fetch = vi.fn();
@@ -144,7 +171,10 @@ describe("server/routes/onboarding", () => {
     const res = await request(app).post("/api/onboard").send(makeValidBody());
 
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ ok: false, error: "GitHub error: network down" });
+    expect(res.body).toEqual({
+      ok: false,
+      error: "GitHub verification error: network down",
+    });
     expect(deps.writeEnvFile).toHaveBeenCalledTimes(1);
     expect(deps.reloadEnv).toHaveBeenCalledTimes(1);
   });
@@ -159,9 +189,7 @@ describe("server/routes/onboarding", () => {
       return "{}";
     });
     const app = createApp(deps);
-    global.fetch
-      .mockResolvedValueOnce({ status: 404 })
-      .mockResolvedValueOnce({ ok: true, statusText: "ok", json: async () => ({}) });
+    mockGithubVerifyAndCreate();
 
     const res = await request(app).post("/api/onboard").send(makeValidBody());
 
@@ -213,7 +241,7 @@ describe("server/routes/onboarding", () => {
     });
   });
 
-  it("allows onboarding into an existing repo with normal initial push", async () => {
+  it("rejects onboarding when workspace repo already exists", async () => {
     const deps = createBaseDeps();
     deps.fs.readFileSync.mockImplementation((p) => {
       if (p === "/tmp/openclaw/openclaw.json") return "{}";
@@ -222,22 +250,19 @@ describe("server/routes/onboarding", () => {
       return "{}";
     });
     const app = createApp(deps);
-    global.fetch.mockResolvedValueOnce({ ok: true, status: 200 });
+    mockGithubVerifyAndCreate({ repoStatus: 200, repoOk: true, createOk: true });
 
     const res = await request(app).post("/api/onboard").send(makeValidBody());
 
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual({ ok: true });
-    const initialPushCall = deps.shellCmd.mock.calls.find(([cmd]) =>
-      cmd.includes('alphaclaw git-sync -m "initial setup"'),
-    );
-    expect(initialPushCall).toBeTruthy();
+    expect(res.status).toBe(400);
+    expect(res.body.ok).toBe(false);
+    expect(res.body.error).toContain('Repository "owner/repo" already exists');
   });
 
   it("sanitizes onboarding command failures to avoid leaking secrets", async () => {
     const deps = createBaseDeps();
     const app = createApp(deps);
-    global.fetch.mockResolvedValueOnce({ ok: true, status: 200 });
+    mockGithubVerifyAndCreate();
     deps.shellCmd.mockRejectedValueOnce(
       new Error('Command failed: openclaw onboard --openai-api-key "sk-test-secret-value"'),
     );
@@ -254,7 +279,7 @@ describe("server/routes/onboarding", () => {
   it("returns a helpful OOM message when onboarding runs out of memory", async () => {
     const deps = createBaseDeps();
     const app = createApp(deps);
-    global.fetch.mockResolvedValueOnce({ ok: true, status: 200 });
+    mockGithubVerifyAndCreate();
     deps.shellCmd.mockRejectedValueOnce(
       new Error("FATAL ERROR: Ineffective mark-compacts near heap limit Allocation failed - JavaScript heap out of memory"),
     );
@@ -272,7 +297,7 @@ describe("server/routes/onboarding", () => {
   it("returns a helpful GitHub permissions message for repo access failures", async () => {
     const deps = createBaseDeps();
     const app = createApp(deps);
-    global.fetch.mockResolvedValueOnce({ ok: true, status: 200 });
+    mockGithubVerifyAndCreate();
     const err = new Error("Command failed: openclaw onboard");
     err.stderr = "remote: Permission to owner/repo denied to user";
     deps.shellCmd.mockRejectedValueOnce(err);
@@ -290,7 +315,7 @@ describe("server/routes/onboarding", () => {
   it("returns a helpful provider auth message for invalid credentials", async () => {
     const deps = createBaseDeps();
     const app = createApp(deps);
-    global.fetch.mockResolvedValueOnce({ ok: true, status: 200 });
+    mockGithubVerifyAndCreate();
     deps.shellCmd.mockRejectedValueOnce(new Error("invalid_api_key"));
 
     const res = await request(app).post("/api/onboard").send(makeValidBody());
