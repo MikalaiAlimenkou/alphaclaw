@@ -228,3 +228,13 @@ npm run test:coverage   # Coverage report
 ## License
 
 MIT
+
+
+## 🤝 Contributing / 贡献
+EN: Issues and PRs are welcome.
+CN: 欢迎提交 Issue 和 PR。
+## 📄 License / 许可证
+EN: MIT License.
+CN: MIT 开源协议。
+EN: Give a star if helpful.
+CN: 有用欢迎 Star ⭐
